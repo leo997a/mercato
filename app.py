@@ -1,22 +1,22 @@
 import streamlit as st
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import time
-from deep_translator import GoogleTranslator
 import plotly.express as px
-from rapidfuzz import fuzz
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from deep_translator import GoogleTranslator
+from rapidfuzz import fuzz
 import logging
+import os
 
 # إعداد التسجيل
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # إعداد Google Custom Search API
-GOOGLE_API_KEY = "YOUR_API_KEY"  # استبدل بمفتاح API الخاص بك
-SEARCH_ENGINE_ID = "YOUR_SEARCH_ENGINE_ID"  # استبدل بمعرف محرك البحث
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "YOUR_API_KEY")  # استبدل بمفتاح API في Streamlit secrets
+SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID", "YOUR_SEARCH_ENGINE_ID")  # استبدل بمعرف محرك البحث
 
 # التحقق من الإدخال العربي
 def is_arabic(text):
@@ -28,16 +28,23 @@ def suggest_players(input_text, is_arabic=False):
     suggestions = [input_text]  # إضافة الإدخال كخيار افتراضي
     input_text = input_text.lower().strip()
 
-    # استخدام Google Custom Search API
+    # ترجمة الإدخال العربي إلى الإنجليزية إذا لزم الأمر
+    if is_arabic:
+        try:
+            input_text = GoogleTranslator(source="ar", target="en").translate(input_text).lower().strip()
+        except Exception as e:
+            logger.error(f"Translation error: {str(e)}")
+
     try:
         service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY)
         query = f"{input_text} football player"
         result = service.cse().list(q=query, cx=SEARCH_ENGINE_ID, num=5).execute()
         for item in result.get("items", []):
             title = item["title"].lower()
-            if "player" in title or "football" in title:
+            if "football" in title or "player" in title:
                 player_name = item["title"].split("-")[0].strip()
-                if player_name not in suggestions:
+                # Check similarity to avoid irrelevant suggestions
+                if fuzz.partial_ratio(input_text, player_name) > 70 and player_name not in suggestions:
                     suggestions.append(player_name)
     except HttpError as e:
         logger.error(f"Google API error: {str(e)}")
