@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import time
 from deep_translator import GoogleTranslator
 import plotly.express as px
-from fuzzywuzzy import fuzz
+from rapidfuzz import fuzz
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import logging
@@ -13,18 +13,6 @@ import logging
 # إعداد التسجيل
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# تحميل قاعدة بيانات اللاعبين
-try:
-    players_df = pd.read_csv("players.csv", encoding="utf-8")
-    players_df = players_df.dropna().reset_index(drop=True)
-    players_df = players_df[~players_df["name_en"].str.contains("#VALUE!")]
-    players_df = players_df[players_df["name_en"].notnull() & players_df["name_ar"].notnull()]
-    players = players_df.to_dict("records")
-except Exception as e:
-    logger.error(f"Error loading players.csv: {str(e)}")
-    players = []
-    st.error(f"خطأ في تحميل ملف players.csv: {str(e)}")
 
 # إعداد Google Custom Search API
 GOOGLE_API_KEY = "YOUR_API_KEY"  # استبدل بمفتاح API الخاص بك
@@ -34,41 +22,29 @@ SEARCH_ENGINE_ID = "YOUR_SEARCH_ENGINE_ID"  # استبدل بمعرف محرك �
 def is_arabic(text):
     return any("\u0600" <= char <= "\u06FF" for char in text)
 
-# دالة الاقتراح التلقائي
+# دالة الاقتراح التلقائي باستخدام Google API
 def suggest_players(input_text, is_arabic=False):
-    suggestions = []
+    logger.info(f"Processing suggestion for input: {input_text}")
+    suggestions = [input_text]  # إضافة الإدخال كخيار افتراضي
     input_text = input_text.lower().strip()
-    # البحث المباشر دون players.csv
-    suggestions.append(input_text)  # إضافة الإدخال كخيار
-    return suggestions[:10]
-    
-    # البحث في players.csv باستخدام fuzzy matching
-    for player in players:
-        name_en = player["name_en"].lower()
-        name_ar = player.get("name_ar", "").lower()
-        score_en = fuzz.partial_ratio(input_text, name_en)
-        score_ar = fuzz.partial_ratio(input_text, name_ar) if is_arabic else 0
-        if score_en > 80 or (is_arabic and score_ar > 80):
-            suggestions.append(player["name_en"])
-    
-    # إذا كانت الاقتراحات أقل من 5، استخدم بحث جوجل
-    if len(suggestions) < 5:
-        try:
-            service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY)
-            query = f"{input_text} football player"
-            result = service.cse().list(q=query, cx=SEARCH_ENGINE_ID, num=5).execute()
-            for item in result.get("items", []):
-                title = item["title"].lower()
-                if "player" in title or "football" in title:
-                    player_name = item["title"].split("-")[0].strip()
-                    if player_name not in suggestions:
-                        suggestions.append(player_name)
-        except HttpError as e:
-            logger.error(f"Google API error: {str(e)}")
-            st.warning(f"خطأ في بحث جوجل: {str(e)}")
-    
+
+    # استخدام Google Custom Search API
+    try:
+        service = build("customsearch", "v1", developerKey=GOOGLE_API_KEY)
+        query = f"{input_text} football player"
+        result = service.cse().list(q=query, cx=SEARCH_ENGINE_ID, num=5).execute()
+        for item in result.get("items", []):
+            title = item["title"].lower()
+            if "player" in title or "football" in title:
+                player_name = item["title"].split("-")[0].strip()
+                if player_name not in suggestions:
+                    suggestions.append(player_name)
+    except HttpError as e:
+        logger.error(f"Google API error: {str(e)}")
+        st.warning(f"خطأ في بحث جوجل: {str(e)}")
+
     logger.info(f"Suggestions: {suggestions}")
-    return suggestions[:10] if suggestions else [input_text]
+    return suggestions[:10]
 
 # دالة جلب بيانات الشائعات من Transfermarkt
 def get_transfer_data(player_name_en, club_name_en):
@@ -157,7 +133,7 @@ is_arabic_input = is_arabic(player_input)
 if player_input and len(player_input) >= 2:
     suggestions = suggest_players(player_input, is_arabic_input)
     if suggestions:
-        selected_player = st.selectbox("اختر اللاعب:", suggestions + [player_input])
+        selected_player = st.selectbox("اختر اللاعب:", suggestions)
     else:
         selected_player = player_input
 else:
