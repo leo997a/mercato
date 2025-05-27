@@ -1,20 +1,24 @@
 import streamlit as st
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
-from PIL import Image
-from io import BytesIO
 
-def translate_text(text):
+# تحميل ملف اللاعبين - يجب أن يكون بنفس مجلد التطبيق أو ضع المسار الصحيح
+@st.cache_data
+def load_players():
+    df = pd.read_csv('players.csv')  # يجب أن يحتوي على عمود 'name_en' و 'name_ar' أو على الأقل اسم واحد
+    return df
+
+# دالة ترجمة النص (في حال احتجت)
+def translate_text(text, source='auto', target='en'):
     try:
-        return GoogleTranslator(source='auto', target='en').translate(text)
+        return GoogleTranslator(source=source, target=target).translate(text)
     except:
-        return text  # fallback if translation fails
+        return text
 
-def get_transfer_data(player_name, club_name):
-    player_name_en = translate_text(player_name)
-    club_name_en = translate_text(club_name)
-
+# دالة البحث عن بيانات اللاعب في Transfermarkt
+def get_transfer_data(player_name_en, club_name_en):
     search_url = f"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query={player_name_en.replace(' ', '+')}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     res = requests.get(search_url, headers=headers)
@@ -28,7 +32,6 @@ def get_transfer_data(player_name, club_name):
     player_page = requests.get(player_url, headers=headers)
     soup_player = BeautifulSoup(player_page.text, 'html.parser')
 
-    # Get player image and market value
     try:
         image_url = soup_player.find('img', class_='data-header__profile-image')['src']
     except:
@@ -40,49 +43,58 @@ def get_transfer_data(player_name, club_name):
         market_value = "غير متوفرة"
 
     player_info = {
-        'name': player_name,
+        'name': player_name_en,
         'image': image_url,
         'market_value': market_value,
         'url': player_url
     }
 
-    # Simulate transfer info (since there's no API)
+    # قيم وهمية لتحسين لاحق
     transfer_info = {
-        'probability': 30,  # هذا رقم وهمي، يمكنك تحسينه لاحقاً
+        'probability': 30,
         'source': 'Transfermarkt'
     }
 
-    # لا توجد شائعات فعلية بدون API، لكن نرسل قائمة فارغة
     rumors = []
 
     return player_info, transfer_info, rumors
 
+# تحميل بيانات اللاعبين
+players_df = load_players()
 
-# واجهة Streamlit
 st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
-
 st.title("🔍 بحث شائعات انتقال اللاعبين")
-st.markdown("أدخل اسم اللاعب والنادي المحتمل للبحث من موقع Transfermarkt.")
 
-player_name = st.text_input("اسم اللاعب", placeholder="مثال: محمد صلاح")
+# إنشاء قائمة للاسماء العربية والإنجليزية لخاصية autocomplete
+player_options = players_df['name_ar'].tolist()  # أو 'name_en' إذا تريد
+player_selected = st.selectbox("اختر اسم اللاعب (يمكن البحث بالكتابة)", player_options)
+
 club_name = st.text_input("اسم النادي", placeholder="مثال: ريال مدريد")
 
 if st.button("بحث"):
-    if not player_name or not club_name:
+    if not player_selected or not club_name:
         st.warning("الرجاء ملء جميع الحقول.")
     else:
-        with st.spinner("جارٍ البحث..."):
-            player_info, transfer_info, rumors = get_transfer_data(player_name, club_name)
-
-        if not player_info:
-            st.error("❌ لم يتم العثور على اللاعب.")
+        # جلب الاسم الإنجليزي المطابق للاسم العربي المختار من CSV
+        player_name_en = players_df.loc[players_df['name_ar'] == player_selected, 'name_en'].values
+        if len(player_name_en) == 0:
+            st.error("❌ لم يتم العثور على اسم اللاعب باللغة الإنجليزية في قاعدة البيانات.")
         else:
-            st.image(player_info['image'], width=150)
-            st.subheader(player_info['name'])
-            st.markdown(f"**القيمة السوقية:** {player_info['market_value']}")
-            st.markdown(f"**احتمالية الانتقال إلى {club_name}:** {transfer_info['probability']}%")
-            st.markdown(f"[عرض صفحة اللاعب على Transfermarkt]({player_info['url']})")
+            player_name_en = player_name_en[0]
+            club_name_en = translate_text(club_name, source='ar', target='en')
 
-            if not rumors:
-                st.info("لا توجد شائعات حالياً حول هذا الانتقال.")
+            with st.spinner("جارٍ البحث..."):
+                player_info, transfer_info, rumors = get_transfer_data(player_name_en, club_name_en)
 
+            if not player_info:
+                st.error("❌ لم يتم العثور على اللاعب في موقع Transfermarkt.")
+            else:
+                if player_info['image']:
+                    st.image(player_info['image'], width=150)
+                st.subheader(player_selected)
+                st.markdown(f"**القيمة السوقية:** {player_info['market_value']}")
+                st.markdown(f"**احتمالية الانتقال إلى {club_name}:** {transfer_info['probability']}%")
+                st.markdown(f"[عرض صفحة اللاعب على Transfermarkt]({player_info['url']})")
+
+                if not rumors:
+                    st.info("لا توجد شائعات حالياً حول هذا الانتقال.")
