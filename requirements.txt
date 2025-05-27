@@ -1,5 +1,7 @@
 streamlit
+pandas
 beautifulsoup4
 requests
 pillow
 deep-translator
+plotly
