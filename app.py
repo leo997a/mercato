@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 
-# Set page configuration at the very top
+# ضبط إعدادات الصفحة
 st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
 
 # تحميل ملف اللاعبين
@@ -33,7 +33,7 @@ def get_transfer_data(player_name_en, club_name_en):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         res = requests.get(search_url, headers=headers, timeout=10)
-        res.raise_for_status()  # التأكد من نجاح الطلب
+        res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
 
         # البحث عن رابط اللاعب
@@ -97,14 +97,14 @@ if 'name_ar' not in players_df.columns:
 st.title("🔍 بحث شائعات انتقال اللاعبين")
 
 # البحث عن اللاعب باستخدام text_input
-search_term = st.text_input("ابحث عن اللاعب (اكتب الاسم بالعربية أو الإنجليزية)", placeholder="مثال: آرون رامسي أو Aaron Ramsey")
+search_term = st.text_input("ابحث عن اللاعب (اكتب الحرف الأول من الاسم بالعربية أو الإنجليزية)", placeholder="مثال: م أو M")
 
-# تصفية اللاعبين بناءً على البحث
+# تصفية اللاعبين بناءً على بداية الاسم فقط
 if search_term:
-    # البحث في الأسماء العربية والإنجليزية
+    search_term = search_term.strip()
     filtered_players = players_df[
-        players_df['name_ar'].str.contains(search_term, case=False, na=False) |
-        players_df['name_en'].str.contains(search_term, case=False, na=False)
+        players_df['name_ar'].str.startswith(search_term, na=False) |
+        players_df['name_en'].str.lower().str.startswith(search_term.lower(), na=False)
     ]
     player_options = filtered_players['name_ar'].tolist()
 else:
@@ -114,7 +114,7 @@ else:
 player_selected = st.selectbox(
     "اختر اللاعب",
     player_options,
-    help="اكتب جزءًا من اسم اللاعب أعلاه لتصفية القائمة"
+    help="اكتب الحرف الأول من اسم اللاعب أعلاه لتصفية القائمة"
 )
 
 club_name = st.text_input("اسم النادي", placeholder="مثال: ريال مدريد")
