@@ -1,10 +1,11 @@
 import streamlit as st
-st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
-
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
+
+# Set page configuration at the very top
+st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
 
 # تحميل ملف اللاعبين - يجب أن يكون بنفس مجلد التطبيق أو ضع المسار الصحيح
 @st.cache_data
@@ -64,7 +65,6 @@ def get_transfer_data(player_name_en, club_name_en):
 # تحميل بيانات اللاعبين
 players_df = load_players()
 
-st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
 st.title("🔍 بحث شائعات انتقال اللاعبين")
 
 # إنشاء قائمة للاسماء العربية والإنجليزية لخاصية autocomplete
