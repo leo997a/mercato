@@ -1,7 +1,9 @@
-streamlit
-pandas
-beautifulsoup4
-requests
-pillow
-deep-translator
-plotly
+streamlit==1.45.1
+pandas==2.2.3
+beautifulsoup4==4.12.3
+requests==2.32.3
+pillow==10.4.0
+deep-translator==1.11.4
+plotly==5.24.1
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.25.1
