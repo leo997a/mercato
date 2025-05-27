@@ -36,9 +36,11 @@ def is_arabic(text):
 
 # دالة الاقتراح التلقائي
 def suggest_players(input_text, is_arabic=False):
-    logger.info(f"Processing suggestion for input: {input_text}")
     suggestions = []
     input_text = input_text.lower().strip()
+    # البحث المباشر دون players.csv
+    suggestions.append(input_text)  # إضافة الإدخال كخيار
+    return suggestions[:10]
     
     # البحث في players.csv باستخدام fuzzy matching
     for player in players:
