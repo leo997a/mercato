@@ -5,17 +5,29 @@ from bs4 import BeautifulSoup
 import time
 from deep_translator import GoogleTranslator
 import plotly.express as px
+import logging
+
+# إعداد التسجيل
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # تحميل قاعدة بيانات اللاعبين
 try:
     players_df = pd.read_csv("players.csv", encoding="utf-8")
-    # تنظيف البيانات (إزالة الصفوف غير الصالحة)
+    logger.info("Loaded players.csv successfully")
+    # تنظيف البيانات
     players_df = players_df.dropna().reset_index(drop=True)
     players_df = players_df[~players_df["name_en"].str.contains("#VALUE!")]
+    players_df = players_df[players_df["name_en"].notnull() & players_df["name_ar"].notnull()]
     players = players_df.to_dict("records")
-except FileNotFoundError:
+except FileNotFoundError as e:
+    logger.error(f"FileNotFoundError: {str(e)}")
     players = []
     st.error("ملف players.csv غير موجود. يرجى التأكد من وجوده في المجلد.")
+except Exception as e:
+    logger.error(f"Error loading players.csv: {str(e)}")
+    players = []
+    st.error(f"خطأ في تحميل ملف players.csv: {str(e)}")
 
 # التحقق من الإدخال العربي
 def is_arabic(text):
@@ -32,7 +44,8 @@ def suggest_players(input_text, is_arabic=False):
         if input_text in name_en or (is_arabic and input_text in name_ar):
             suggestions.append(player["name_en"])
     
-    return suggestions[:10]  # إرجاع أول 10 اقتراحات
+    logger.info(f"Suggestions for '{input_text}': {suggestions}")
+    return suggestions[:10]
 
 # دالة جلب بيانات الشائعات من Transfermarkt
 def get_transfer_data(player_name_en, club_name_en):
@@ -44,13 +57,15 @@ def get_transfer_data(player_name_en, club_name_en):
             "Accept-Language": "en-US,en;q=0.9"
         }
 
+        logger.info(f"Fetching data for {player_name_en} from {search_url}")
         res = requests.get(search_url, headers=headers, timeout=10)
         res.raise_for_status()
-        time.sleep(1)  # تأخير لتجنب الحظر
+        time.sleep(1)
         soup = BeautifulSoup(res.content, "html.parser")
 
         link_tag = soup.select_one("a.spielprofil_tooltip")
         if not link_tag:
+            logger.warning(f"No player found for {player_name_en}")
             return None, None, [], "❌ لم يتم العثور على اللاعب."
 
         player_url = base_url + link_tag["href"]
@@ -101,11 +116,14 @@ def get_transfer_data(player_name_en, club_name_en):
             "source": "Transfermarkt"
         }
 
+        logger.info(f"Found {len(rumors)} rumors for {player_name_en}")
         return player_info, transfer_info, rumors, None
 
     except requests.RequestException as e:
+        logger.error(f"Request error: {str(e)}")
         return None, None, [], f"❌ خطأ في الاتصال: {str(e)}"
     except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
         return None, None, [], f"❌ حدث خطأ غير متوقع: {str(e)}"
 
 # تنسيق الواجهة
