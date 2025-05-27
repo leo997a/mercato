@@ -1,27 +1,23 @@
 import streamlit as st
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
+from PIL import Image
+import pandas as pd
 
-# Set page configuration at the very top
+# يجب أن يكون هذا السطر في البداية
 st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
 
-# تحميل ملف اللاعبين
-@st.cache_data
-def load_players():
-    df = pd.read_csv('https://raw.githubusercontent.com/leo997a/mercato/refs/heads/main/players.csv')
-    return df
-
-# دالة ترجمة النص
-def translate_text(text, source='auto', target='en'):
+def translate_text(text):
     try:
-        return GoogleTranslator(source=source, target=target).translate(text)
+        return GoogleTranslator(source='auto', target='en').translate(text)
     except:
-        return text
+        return text  # fallback
 
-# دالة البحث عن بيانات اللاعب
-def get_transfer_data(player_name_en, club_name_en):
+def get_transfer_data(player_name, club_name):
+    player_name_en = translate_text(player_name)
+    club_name_en = translate_text(club_name)
+
     search_url = f"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query={player_name_en.replace(' ', '+')}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     res = requests.get(search_url, headers=headers)
@@ -46,7 +42,7 @@ def get_transfer_data(player_name_en, club_name_en):
         market_value = "غير متوفرة"
 
     player_info = {
-        'name': player_name_en,
+        'name': player_name,
         'image': image_url,
         'market_value': market_value,
         'url': player_url
@@ -61,41 +57,39 @@ def get_transfer_data(player_name_en, club_name_en):
 
     return player_info, transfer_info, rumors
 
-# تحميل بيانات اللاعبين
-players_df = load_players()
-
-# التحقق من وجود العمود 'name_en'
-if 'name_en' not in players_df.columns:
-    st.error("❌ ملف players.csv لا يحتوي على العمود 'name_en'")
-    st.stop()
-
+# --- واجهة التطبيق ---
 st.title("🔍 بحث شائعات انتقال اللاعبين")
+st.markdown("ارفع ملف اللاعبين واختر اسماً من القائمة ثم أدخل النادي.")
 
-# إنشاء قائمة للأسماء الإنجليزية
-player_options = players_df['name_en'].tolist()
-player_selected = st.selectbox("اختر اسم اللاعب (يمكن البحث بالكتابة)", player_options)
+uploaded_file = st.file_uploader("ارفع ملف اللاعبين (CSV ويحتوي عمود name_en)", type=["csv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    df.columns = df.columns.str.strip()
 
-club_name = st.text_input("اسم النادي", placeholder="مثال: ريال مدريد")
+    if "name_en" in df.columns:
+        player_name = st.selectbox("اختر اسم اللاعب", df["name_en"].dropna().unique())
+        club_name = st.text_input("اسم النادي", placeholder="مثال: ريال مدريد")
 
-if st.button("بحث"):
-    if not player_selected or not club_name:
-        st.warning("الرجاء ملء جميع الحقول.")
+        if st.button("بحث"):
+            if not player_name or not club_name:
+                st.warning("الرجاء ملء جميع الحقول.")
+            else:
+                with st.spinner("جارٍ البحث..."):
+                    player_info, transfer_info, rumors = get_transfer_data(player_name, club_name)
+
+                if not player_info:
+                    st.error("❌ لم يتم العثور على اللاعب.")
+                else:
+                    if player_info['image']:
+                        st.image(player_info['image'], width=150)
+                    st.subheader(player_info['name'])
+                    st.markdown(f"**القيمة السوقية:** {player_info['market_value']}")
+                    st.markdown(f"**احتمالية الانتقال إلى {club_name}:** {transfer_info['probability']}%")
+                    st.markdown(f"[عرض صفحة اللاعب على Transfermarkt]({player_info['url']})")
+
+                    if not rumors:
+                        st.info("لا توجد شائعات حالياً حول هذا الانتقال.")
     else:
-        player_name_en = player_selected  # الاسم المختار هو بالفعل بالإنجليزية
-        club_name_en = translate_text(club_name, source='ar', target='en')
-
-        with st.spinner("جارٍ البحث..."):
-            player_info, transfer_info, rumors = get_transfer_data(player_name_en, club_name_en)
-
-        if not player_info:
-            st.error("❌ لم يتم العثور على اللاعب في موقع Transfermarkt.")
-        else:
-            if player_info['image']:
-                st.image(player_info['image'], width=150)
-            st.subheader(player_selected)
-            st.markdown(f"**القيمة السوقية:** {player_info['market_value']}")
-            st.markdown(f"**احتمالية الانتقال إلى {club_name}:** {transfer_info['probability']}%")
-            st.markdown(f"[عرض صفحة اللاعب على Transfermarkt]({player_info['url']})")
-
-            if not rumors:
-                st.info("لا توجد شائعات حالياً حول هذا الانتقال.")
+        st.error("❌ ملف CSV لا يحتوي على العمود 'name_en'")
+else:
+    st.info("📄 الرجاء رفع ملف CSV يحتوي على عمود 'name_en'")
