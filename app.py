@@ -10,8 +10,14 @@ st.set_page_config(page_title="شائعات انتقال اللاعبين", layo
 # تحميل ملف اللاعبين
 @st.cache_data
 def load_players():
-    df = pd.read_csv('https://raw.githubusercontent.com/leo997a/mercato/refs/heads/main/players.csv')
-    return df
+    # استخدام الرابط الخام (Raw URL)
+    url = 'https://raw.githubusercontent.com/leo997a/mercato/main/players.csv'
+    try:
+        df = pd.read_csv(url)
+        return df
+    except Exception as e:
+        st.error(f"❌ خطأ أثناء تحميل ملف players.csv: {str(e)}")
+        st.stop()
 
 # دالة ترجمة النص
 def translate_text(text, source='auto', target='en'):
@@ -63,6 +69,10 @@ def get_transfer_data(player_name_en, club_name_en):
 
 # تحميل بيانات اللاعبين
 players_df = load_players()
+
+# طباعة أسماء الأعمدة للتحقق
+st.write("أسماء الأعمدة في ملف players.csv:")
+st.write(players_df.columns.tolist())
 
 # التحقق من وجود العمود 'name_en'
 if 'name_en' not in players_df.columns:
