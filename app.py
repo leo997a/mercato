@@ -1,4 +1,6 @@
 import streamlit as st
+st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
+
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
