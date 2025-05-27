@@ -7,20 +7,20 @@ from deep_translator import GoogleTranslator
 # Set page configuration at the very top
 st.set_page_config(page_title="شائعات انتقال اللاعبين", layout="centered", page_icon="⚽")
 
-# تحميل ملف اللاعبين - يجب أن يكون بنفس مجلد التطبيق أو ضع المسار الصحيح
+# تحميل ملف اللاعبين
 @st.cache_data
 def load_players():
-    df = pd.read_csv('players.csv')  # يجب أن يحتوي على عمود 'name_en' و 'name_ar' أو على الأقل اسم واحد
+    df = pd.read_csv('https://raw.githubusercontent.com/leo997a/mercato/refs/heads/main/players.csv')
     return df
 
-# دالة ترجمة النص (في حال احتجت)
+# دالة ترجمة النص
 def translate_text(text, source='auto', target='en'):
     try:
         return GoogleTranslator(source=source, target=target).translate(text)
     except:
         return text
 
-# دالة البحث عن بيانات اللاعب في Transfermarkt
+# دالة البحث عن بيانات اللاعب
 def get_transfer_data(player_name_en, club_name_en):
     search_url = f"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query={player_name_en.replace(' ', '+')}"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -52,7 +52,6 @@ def get_transfer_data(player_name_en, club_name_en):
         'url': player_url
     }
 
-    # قيم وهمية لتحسين لاحق
     transfer_info = {
         'probability': 30,
         'source': 'Transfermarkt'
@@ -65,10 +64,20 @@ def get_transfer_data(player_name_en, club_name_en):
 # تحميل بيانات اللاعبين
 players_df = load_players()
 
+# طباعة أسماء الأعمدة للتحقق
+st.write("أسماء الأعمدة في ملف players.csv:")
+st.write(players_df.columns.tolist())
+
+# فحص وجود الأعمدة المتوقعة
+required_columns = ['name_ar', 'name_en']  # استبدل بأسماء الأعمدة الصحيحة إذا لزم الأمر
+if not all(col in players_df.columns for col in required_columns):
+    st.error(f"❌ ملف players.csv لا يحتوي على الأعمدة المتوقعة: {required_columns}")
+    st.stop()
+
 st.title("🔍 بحث شائعات انتقال اللاعبين")
 
-# إنشاء قائمة للاسماء العربية والإنجليزية لخاصية autocomplete
-player_options = players_df['name_ar'].tolist()  # أو 'name_en' إذا تريد
+# إنشاء قائمة للأسماء العربية
+player_options = players_df['name_ar'].tolist()
 player_selected = st.selectbox("اختر اسم اللاعب (يمكن البحث بالكتابة)", player_options)
 
 club_name = st.text_input("اسم النادي", placeholder="مثال: ريال مدريد")
@@ -77,7 +86,6 @@ if st.button("بحث"):
     if not player_selected or not club_name:
         st.warning("الرجاء ملء جميع الحقول.")
     else:
-        # جلب الاسم الإنجليزي المطابق للاسم العربي المختار من CSV
         player_name_en = players_df.loc[players_df['name_ar'] == player_selected, 'name_en'].values
         if len(player_name_en) == 0:
             st.error("❌ لم يتم العثور على اسم اللاعب باللغة الإنجليزية في قاعدة البيانات.")
