@@ -1,5 +1,5 @@
 import streamlit as st
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from utils import get_transfer_data
 from PIL import Image
 import requests
@@ -19,8 +19,9 @@ if submitted:
     if player_name and club_name:
         with st.spinner("جارٍ جلب البيانات..."):
             translator = Translator()
-            player_name_en = translator.translate(player_name, src='ar', dest='en').text
-            club_name_en = translator.translate(club_name, src='ar', dest='en').text
+            player_name_en = GoogleTranslator(source='auto', target='en').translate(player_name)
+            club_name_en = GoogleTranslator(source='auto', target='en').translate(club_name)
+
 
             player_info, transfer_info, rumors, transfer_image = get_transfer_data(player_name_en, club_name_en)
 
